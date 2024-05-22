@@ -1,4 +1,4 @@
 .\.workoutapi\Scripts\activate
-make run-migrations
-make run-migrations
+make create-migrations d="init_db" 
+make run-migrations  -> Lembrar de rodar isso para criar o banco de dados.
 pip freeze > requirements.txt
