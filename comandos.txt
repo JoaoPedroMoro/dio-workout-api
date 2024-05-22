@@ -1,0 +1,4 @@
+.\.workoutapi\Scripts\activate
+make run-migrations
+make run-migrations
+pip freeze > requirements.txt
