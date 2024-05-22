@@ -5,7 +5,7 @@ from workout_api.configs.settings import settings
 
 engine = create_async_engine(settings.DB_URL, echo=False)
 async_session = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
+    engine, class_= AsyncSession, expire_on_commit=False
 )
 
 async def get_session() -> AsyncGenerator:
