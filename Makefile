@@ -4,10 +4,10 @@ venv:
 run:
 	@uvicorn workout_api.main:app --reload
 
-docker_up:
+docker-up:
 	@docker-compose up -d
 
-docker_down:
+docker-down:
 	@docker-compose down
 
 create-migrations:
