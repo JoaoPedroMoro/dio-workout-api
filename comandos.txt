@@ -2,3 +2,4 @@
 make create-migrations d="init_db" 
 make run-migrations  -> Lembrar de rodar isso para criar o banco de dados.
 pip freeze > requirements.txt
+pip install --upgrade --upgrade-strategy eager -r requirements.txt  -> Baixar todos os requisitos
