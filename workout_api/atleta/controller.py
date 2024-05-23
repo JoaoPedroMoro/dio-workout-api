@@ -10,6 +10,7 @@ from workout_api.centro_treinamento.models import CentroTreinamentoModel
 
 from workout_api.contrib.dependencies import DatabaseDependency
 from sqlalchemy.future import select
+from sqlalchemy.exc import IntegrityError
 
 router = APIRouter()
 
@@ -45,6 +46,7 @@ async def post(
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail=f'O centro de treinamento {centro_treinamento_nome} não foi encontrado.'
         )
+
     try:
         atleta_out = AtletaOut(id=uuid4(), created_at=datetime.utcnow(), **atleta_in.model_dump())
         atleta_model = AtletaModel(**atleta_out.model_dump(exclude={'categoria', 'centro_treinamento'}))
@@ -54,6 +56,13 @@ async def post(
         
         db_session.add(atleta_model)
         await db_session.commit()
+    except IntegrityError as e:
+        await db_session.rollback()
+        existing_cpf = atleta_in.cpf
+        raise HTTPException(
+            status_code=status.HTTP_303_SEE_OTHER,
+            detail=f'Já existe um atleta cadastrado com o cpf: {existing_cpf}'
+        )    
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
@@ -73,6 +82,27 @@ async def query(db_session: DatabaseDependency) -> list[AtletaOut]:
     atletas: list[AtletaOut] = (await db_session.execute(select(AtletaModel))).scalars().all()
     
     return [AtletaOut.model_validate(atleta) for atleta in atletas]
+
+
+@router.get(
+    '/conjunto', 
+    summary='Consultar todos os atletas no conjunto com os centros de treinamento e as categorias',
+    status_code=status.HTTP_200_OK,
+    response_model=list[dict[str, str]],
+)
+async def query(db_session: DatabaseDependency) -> list[dict[str, str]]:
+    atletas: list[AtletaModel] = (await db_session.execute(select(AtletaModel))).scalars().all()
+    
+    result = []
+    for atleta in atletas:
+        atleta_dict = {
+            "nome": atleta.nome,
+            "centro_treinamento": atleta.centro_treinamento.nome,
+            "categoria": atleta.categoria.nome
+        }
+        result.append(atleta_dict)
+    
+    return result
 
 
 @router.get(
@@ -140,3 +170,64 @@ async def delete(id: UUID4, db_session: DatabaseDependency) -> None:
     
     await db_session.delete(atleta)
     await db_session.commit()
+    
+@router.get(
+    '/categoria/{categoria_nome}', 
+    summary='Consultar Atletas por Categoria',
+    status_code=status.HTTP_200_OK,
+    response_model=list[AtletaOut],
+)
+async def get_by_categoria(categoria_nome: str, db_session: DatabaseDependency) -> list[AtletaOut]:
+    categoria = (await db_session.execute(
+        select(CategoriaModel).filter_by(nome=categoria_nome))
+    ).scalars().first()
+    
+    if not categoria:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f'A categoria {categoria_nome} não foi encontrada.'
+        )
+
+    atletas = (await db_session.execute(
+        select(AtletaModel).filter_by(categoria_id=categoria.pk_id))
+    ).scalars().all()
+    
+    return [AtletaOut.model_validate(atleta) for atleta in atletas]
+
+@router.get(
+    '/by-nome/{nome}', 
+    summary='Consulta um Atleta pelo nome',
+    status_code=status.HTTP_200_OK,
+    response_model=AtletaOut,
+)
+async def get_by_nome(nome: str, db_session: DatabaseDependency) -> AtletaOut:
+    atleta = (
+        await db_session.execute(select(AtletaModel).filter_by(nome=nome))
+    ).scalars().first()
+
+    if not atleta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f'Atleta de nome {nome} não encontrado'
+        )
+    
+    return AtletaOut.model_validate(atleta)
+
+@router.get(
+    '/by-cpf/{cpf}', 
+    summary='Consulta um Atleta pelo cpf',
+    status_code=status.HTTP_200_OK,
+    response_model=AtletaOut,
+)
+async def get_by_cpf(cpf: str, db_session: DatabaseDependency) -> AtletaOut:
+    atleta = (
+        await db_session.execute(select(AtletaModel).filter_by(cpf=cpf))
+    ).scalars().first()
+
+    if not atleta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f'Atleta de cpf {cpf} não encontrado'
+        )
+    
+    return AtletaOut.model_validate(atleta)
